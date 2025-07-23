@@ -13,47 +13,6 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 let access_token = '';
 let refresh_token = '';
-// Add at top if not already present
-const cache = {
-  analysis: null,
-  trackId: null,
-  lastFetched: 0,
-};
-
-app.get('/audio-analysis', async (req, res) => {
-  try {
-    // Get current playing track ID
-    const currentlyPlayingRes = await axios.get('https://api.spotify.com/v1/me/player/currently-playing', {
-      headers: { Authorization: 'Bearer ' + access_token },
-    });
-
-    const trackId = currentlyPlayingRes.data?.item?.id;
-
-    if (!trackId) {
-      return res.status(404).json({ error: 'No track currently playing' });
-    }
-
-    // Cache audio analysis for 5 minutes to reduce API calls
-    const now = Date.now();
-    if (cache.trackId === trackId && now - cache.lastFetched < 5 * 60 * 1000 && cache.analysis) {
-      return res.json(cache.analysis);
-    }
-
-    // Fetch audio analysis
-    const analysisRes = await axios.get(`https://api.spotify.com/v1/audio-analysis/${trackId}`, {
-      headers: { Authorization: 'Bearer ' + access_token },
-    });
-
-    cache.analysis = analysisRes.data;
-    cache.trackId = trackId;
-    cache.lastFetched = now;
-
-    res.json(analysisRes.data);
-  } catch (err) {
-    console.error('Error fetching audio analysis:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to fetch audio analysis' });
-  }
-});
 
 app.get('/login', (req, res) => {
   const query = qs.stringify({
