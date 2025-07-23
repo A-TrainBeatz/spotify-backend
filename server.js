@@ -19,7 +19,7 @@ app.get('/login', (req, res) => {
     client_id: CLIENT_ID,
     response_type: 'code',
     redirect_uri: REDIRECT_URI,
-    scope: 'user-read-playback-state user-read-currently-playing',
+    const scopes = 'user-read-playback-state user-read-currently-playing streaming user-modify-playback-state';
   });
   res.redirect('https://accounts.spotify.com/authorize?' + query);
 });
