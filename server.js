@@ -86,8 +86,6 @@ app.get('/callback', async (req, res) => {
 
     access_token = response.data.access_token;
 
-    // Spotify may not return a new refresh token
-    // every time, so only replace it when supplied.
     if (response.data.refresh_token) {
       refresh_token = response.data.refresh_token;
     }
@@ -119,7 +117,7 @@ app.get('/callback', async (req, res) => {
 });
 
 // ----------------------------------------------------
-// Refresh access token
+// Refresh access token (UPDATED WITH EXSPIRATION CLEANUP)
 // ----------------------------------------------------
 
 async function refreshAccessToken() {
@@ -127,37 +125,47 @@ async function refreshAccessToken() {
     throw new Error('No Spotify refresh token available.');
   }
 
-  const response = await axios.post(
-    'https://accounts.spotify.com/api/token',
-    qs.stringify({
-      grant_type: 'refresh_token',
-      refresh_token
-    }),
-    {
-      headers: {
-        Authorization:
-          'Basic ' +
-          Buffer
-            .from(`${CLIENT_ID}:${CLIENT_SECRET}`)
-            .toString('base64'),
+  try {
+    const response = await axios.post(
+      'https://accounts.spotify.com/api/token',
+      qs.stringify({
+        grant_type: 'refresh_token',
+        refresh_token
+      }),
+      {
+        headers: {
+          Authorization:
+            'Basic ' +
+            Buffer
+              .from(`${CLIENT_ID}:${CLIENT_SECRET}`)
+              .toString('base64'),
 
-        'Content-Type':
-          'application/x-www-form-urlencoded'
+          'Content-Type':
+            'application/x-www-form-urlencoded'
+        }
       }
+    );
+
+    access_token = response.data.access_token;
+    token_expires_at = Date.now() + (response.data.expires_in * 1000);
+
+    // CRITICAL: Overwrite old refresh token if Spotify returns a new one
+    if (response.data.refresh_token) {
+      refresh_token = response.data.refresh_token;
     }
-  );
 
-  access_token = response.data.access_token;
-
-  token_expires_at =
-    Date.now() + (response.data.expires_in * 1000);
-
-  // Spotify can issue a new refresh token.
-  if (response.data.refresh_token) {
-    refresh_token = response.data.refresh_token;
+    return access_token;
+  } catch (err) {
+    // If the refresh token is expired (6-month limit) or revoked
+    if (err.response?.data?.error === 'invalid_grant') {
+      console.error('Refresh token is invalid or expired. User must log in again.');
+      // Wipe the memory variables so getValidAccessToken() knows it must re-authenticate
+      access_token = '';
+      refresh_token = '';
+      token_expires_at = 0;
+    }
+    throw err;
   }
-
-  return access_token;
 }
 
 // ----------------------------------------------------
@@ -185,7 +193,8 @@ app.get('/refresh', async (req, res) => {
     await refreshAccessToken();
 
     res.json({
-      success: true
+      success: true,
+      access_token // Added so you can verify the new token in postman/browser
     });
 
   } catch (err) {
@@ -196,13 +205,13 @@ app.get('/refresh', async (req, res) => {
 
     res.status(500).json({
       success: false,
-      error: 'Failed to refresh Spotify access token.'
+      error: 'Failed to refresh Spotify access token. You may need to visit /login again.'
     });
   }
 });
 
 // ----------------------------------------------------
-// Currently playing
+// Currently playing (UPDATED FOR CLEANER REDIRECT HINTS)
 // ----------------------------------------------------
 
 app.get('/now-playing', async (req, res) => {
@@ -218,7 +227,6 @@ app.get('/now-playing', async (req, res) => {
       }
     );
 
-    // Spotify can return 204 when nothing is currently playing.
     if (response.status === 204 || !response.data) {
       return res.status(204).send();
     }
@@ -231,9 +239,10 @@ app.get('/now-playing', async (req, res) => {
       err.response?.data || err.message
     );
 
-    if (err.response?.status === 401) {
+    // Catch failed refreshes or authentication failures
+    if (err.response?.status === 401 || !refresh_token) {
       return res.status(401).json({
-        error: 'Spotify authorization expired. Please log in again.'
+        error: 'Spotify session expired. Please visit /login to reconnect.'
       });
     }
 
@@ -271,6 +280,12 @@ app.get('/player', async (req, res) => {
       'Player error:',
       err.response?.data || err.message
     );
+
+    if (err.response?.status === 401 || !refresh_token) {
+      return res.status(401).json({
+        error: 'Spotify session expired. Please visit /login to reconnect.'
+      });
+    }
 
     res.status(500).json({
       error: 'Failed to fetch Spotify playback state.'
