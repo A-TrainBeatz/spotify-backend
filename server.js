@@ -20,7 +20,7 @@ const REDIRECT_URI = process.env.REDIRECT_URI;
 
 // Example:
 // FRONTEND_URL=https://yourusername.github.io
-const FRONTEND_URL = https://a-trainbeatz.github.io
+const FRONTEND_URL = a-trainbeatz.github.io
   process.env.FRONTEND_URL || 'http://localhost:3000';
 
 if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI) {
