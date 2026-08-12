@@ -7,7 +7,18 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// ----------------------------------------------------
+// FIX 1: Strict CORS policy explicitly allowing your frontend origin
+// This prevents the browser from throwing a silent 'TypeError {}'
+// ----------------------------------------------------
+app.use(cors({
+  origin: ['https://github.io', 'http://localhost:3000'], // Allows production and local testing
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -26,7 +37,6 @@ const SCOPES = [
 // ----------------------------------------------------
 // Spotify OAuth login
 // ----------------------------------------------------
-
 app.get('/login', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
 
@@ -39,14 +49,13 @@ app.get('/login', (req, res) => {
   });
 
   res.redirect(
-    'https://accounts.spotify.com/authorize?' + params
+    'https://spotify.com?' + params
   );
 });
 
 // ----------------------------------------------------
 // OAuth callback
 // ----------------------------------------------------
-
 app.get('/callback', async (req, res) => {
   const { code, error } = req.query;
 
@@ -64,7 +73,7 @@ app.get('/callback', async (req, res) => {
 
   try {
     const response = await axios.post(
-      'https://accounts.spotify.com/api/token',
+      'https://spotify.com',
       qs.stringify({
         grant_type: 'authorization_code',
         code,
@@ -117,9 +126,8 @@ app.get('/callback', async (req, res) => {
 });
 
 // ----------------------------------------------------
-// Refresh access token (UPDATED WITH EXSPIRATION CLEANUP)
+// Refresh access token (Enhanced with lifetime cleanup)
 // ----------------------------------------------------
-
 async function refreshAccessToken() {
   if (!refresh_token) {
     throw new Error('No Spotify refresh token available.');
@@ -127,7 +135,7 @@ async function refreshAccessToken() {
 
   try {
     const response = await axios.post(
-      'https://accounts.spotify.com/api/token',
+      'https://spotify.com',
       qs.stringify({
         grant_type: 'refresh_token',
         refresh_token
@@ -149,17 +157,14 @@ async function refreshAccessToken() {
     access_token = response.data.access_token;
     token_expires_at = Date.now() + (response.data.expires_in * 1000);
 
-    // CRITICAL: Overwrite old refresh token if Spotify returns a new one
     if (response.data.refresh_token) {
       refresh_token = response.data.refresh_token;
     }
 
     return access_token;
   } catch (err) {
-    // If the refresh token is expired (6-month limit) or revoked
     if (err.response?.data?.error === 'invalid_grant') {
-      console.error('Refresh token is invalid or expired. User must log in again.');
-      // Wipe the memory variables so getValidAccessToken() knows it must re-authenticate
+      console.error('Refresh token is expired/revoked. Resetting tokens.');
       access_token = '';
       refresh_token = '';
       token_expires_at = 0;
@@ -171,9 +176,7 @@ async function refreshAccessToken() {
 // ----------------------------------------------------
 // Make sure the access token is valid
 // ----------------------------------------------------
-
 async function getValidAccessToken() {
-  // Refresh 60 seconds before expiration.
   if (
     !access_token ||
     Date.now() >= token_expires_at - 60000
@@ -187,16 +190,13 @@ async function getValidAccessToken() {
 // ----------------------------------------------------
 // Manual refresh endpoint
 // ----------------------------------------------------
-
 app.get('/refresh', async (req, res) => {
   try {
     await refreshAccessToken();
-
     res.json({
       success: true,
-      access_token // Added so you can verify the new token in postman/browser
+      access_token
     });
-
   } catch (err) {
     console.error(
       'Refresh error:',
@@ -205,21 +205,20 @@ app.get('/refresh', async (req, res) => {
 
     res.status(500).json({
       success: false,
-      error: 'Failed to refresh Spotify access token. You may need to visit /login again.'
+      error: 'Failed to refresh token. Visit /login again.'
     });
   }
 });
 
 // ----------------------------------------------------
-// Currently playing (UPDATED FOR CLEANER REDIRECT HINTS)
+// Currently playing
 // ----------------------------------------------------
-
 app.get('/now-playing', async (req, res) => {
   try {
     const token = await getValidAccessToken();
 
     const response = await axios.get(
-      'https://api.spotify.com/v1/me/player/currently-playing',
+      'https://spotify.com',
       {
         headers: {
           Authorization: `Bearer ${token}`
@@ -227,6 +226,7 @@ app.get('/now-playing', async (req, res) => {
       }
     );
 
+    // FIX 2: Returns 204 safely. Ensure frontend handles res.status === 204 before parsing JSON.
     if (response.status === 204 || !response.data) {
       return res.status(204).send();
     }
@@ -239,7 +239,6 @@ app.get('/now-playing', async (req, res) => {
       err.response?.data || err.message
     );
 
-    // Catch failed refreshes or authentication failures
     if (err.response?.status === 401 || !refresh_token) {
       return res.status(401).json({
         error: 'Spotify session expired. Please visit /login to reconnect.'
@@ -255,13 +254,12 @@ app.get('/now-playing', async (req, res) => {
 // ----------------------------------------------------
 // Playback state
 // ----------------------------------------------------
-
 app.get('/player', async (req, res) => {
   try {
     const token = await getValidAccessToken();
 
     const response = await axios.get(
-      'https://api.spotify.com/v1/me/player',
+      'https://spotify.com',
       {
         headers: {
           Authorization: `Bearer ${token}`
@@ -296,7 +294,6 @@ app.get('/player', async (req, res) => {
 // ----------------------------------------------------
 // Server
 // ----------------------------------------------------
-
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
