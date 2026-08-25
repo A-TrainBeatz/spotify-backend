@@ -10,7 +10,11 @@ const app = express();
 app.use(cors());
 
 const PORT = Number(process.env.PORT) || 3000;
-const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}`).replace(/\\/$/, "");
+const BASE_URL = (
+  process.env.BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  `http://127.0.0.1:${PORT}`
+).replace(/\/$/, "");
 const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || `${BASE_URL}/callback`;
 const OAUTH_SCOPE = "user-read-currently-playing user-read-playback-state";
 const oauthStates = new Set();
