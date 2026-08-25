@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const crypto = require("crypto");
 
 dotenv.config();
 
@@ -9,6 +10,10 @@ const app = express();
 app.use(cors());
 
 const PORT = Number(process.env.PORT) || 3000;
+const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}`).replace(/\\/$/, "");
+const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || `${BASE_URL}/callback`;
+const OAUTH_SCOPE = "user-read-currently-playing user-read-playback-state";
+const oauthStates = new Set();
 
 let accessToken = "";
 let tokenExpiresAt = 0;
@@ -95,9 +100,111 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "spotify-backend",
-    endpoint: "/now-playing"
+    endpoints: ["/login", "/callback", "/now-playing", "/health"]
   });
 });
+
+// Starts Spotify's Authorization Code flow.
+// Add this exact redirect URI to the Redirect URI allowlist in your Spotify app:
+// https://spotify-backend-pkqi.onrender.com/callback
+app.get("/login", (req, res) => {
+  try {
+    validateEnvironment();
+
+    const state = crypto.randomBytes(24).toString("hex");
+    oauthStates.add(state);
+
+    const authUrl = new URL("https://accounts.spotify.com/authorize");
+    authUrl.search = new URLSearchParams({
+      response_type: "code",
+      client_id: process.env.CLIENT_ID,
+      scope: OAUTH_SCOPE,
+      redirect_uri: REDIRECT_URI,
+      state
+    }).toString();
+
+    return res.redirect(authUrl.toString());
+  } catch (error) {
+    console.error("Unable to start Spotify login:", error.message);
+    return res.status(500).send("Spotify login is not configured correctly on the server.");
+  }
+});
+
+// Spotify sends the authorization code back here.
+app.get("/callback", async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.status(400).send(`Spotify authorization failed: ${error}`);
+  }
+
+  if (!code || !state || !oauthStates.has(state)) {
+    return res.status(400).send("Invalid or expired Spotify authorization request.");
+  }
+
+  oauthStates.delete(state);
+
+  try {
+    validateEnvironment();
+
+    const credentials = Buffer.from(
+      `${process.env.CLIENT_ID}:${process.env.CLIENT_SECRET}`
+    ).toString("base64");
+
+    const response = await axios.post(
+      "https://accounts.spotify.com/api/token",
+      new URLSearchParams({
+        grant_type: "authorization_code",
+        code: String(code),
+        redirect_uri: REDIRECT_URI
+      }).toString(),
+      {
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        timeout: 15000
+      }
+    );
+
+    if (!response.data?.access_token) {
+      throw new Error("Spotify did not return an access token.");
+    }
+
+    accessToken = response.data.access_token;
+    tokenExpiresAt =
+      Date.now() + Math.max((Number(response.data.expires_in) || 3600) - 60, 60) * 1000;
+
+    // Spotify may return a replacement refresh token. Keep it in memory for
+    // this running server. The original REFRESH_TOKEN environment variable
+    // remains the persistent fallback after a server restart.
+    if (response.data.refresh_token) {
+      process.env.REFRESH_TOKEN = response.data.refresh_token;
+    }
+
+    return res.send(`
+      <!doctype html>
+      <html>
+        <head><meta charset="utf-8"><title>Spotify Connected</title></head>
+        <body style="font-family:system-ui;background:#121212;color:white;display:grid;place-items:center;min-height:100vh">
+          <main style="text-align:center">
+            <h1 style="color:#1db954">Spotify connected!</h1>
+            <p>Your A-TrainBeatz backend is now authorized.</p>
+            <p><a href="/now-playing" style="color:#1db954">Test /now-playing</a></p>
+          </main>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error(
+      "Spotify callback failed:",
+      error.response?.data || error.message
+    );
+
+    return res.status(502).send("Spotify authorization could not be completed.");
+  }
+});
+
 
 app.get("/health", (req, res) => {
   res.json({
