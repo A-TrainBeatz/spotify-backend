@@ -100,7 +100,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "spotify-backend",
-    endpoints: ["/login", "/callback", "/now-playing", "/health"]
+    endpoints: ["/login", "/callback", "/now-playing", "/health", "/transfer-playback"]
   });
 });
 
