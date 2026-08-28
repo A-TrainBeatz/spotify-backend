@@ -10,13 +10,9 @@ const app = express();
 app.use(cors());
 
 const PORT = Number(process.env.PORT) || 3000;
-const BASE_URL = (
-  process.env.BASE_URL ||
-  process.env.RENDER_EXTERNAL_URL ||
-  `http://127.0.0.1:${PORT}`
-).replace(/\/$/, "");
+const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}`).replace(/\/$/, "");
 const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || `${BASE_URL}/callback`;
-const OAUTH_SCOPE = "user-read-currently-playing user-read-playback-state";
+const OAUTH_SCOPE = "streaming user-read-currently-playing user-read-playback-state user-modify-playback-state";
 const oauthStates = new Set();
 
 let accessToken = "";
@@ -216,6 +212,17 @@ app.get("/health", (req, res) => {
     spotifyTokenAvailable: Boolean(accessToken),
     tokenExpiresAt: tokenExpiresAt || null
   });
+});
+
+app.get("/player-token", async (req, res) => {
+  try {
+    const token = await getValidAccessToken();
+    res.set("Cache-Control", "no-store");
+    return res.json({ access_token: token, expires_at: tokenExpiresAt });
+  } catch (error) {
+    console.error("Player token request failed:", error.message);
+    return res.status(401).json({ error: "Spotify login required." });
+  }
 });
 
 app.get("/now-playing", async (req, res) => {
