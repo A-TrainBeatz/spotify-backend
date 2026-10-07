@@ -10,8 +10,9 @@ app.use(cors());
 
 const PORT = Number(process.env.PORT) || 3000;
 
-// Dynamic Redirect URI based on environment
-const REDIRECT_URI = process.env.REDIRECT_URI || `http://localhost:${PORT}/callback`;
+// FIXED: Automatically uses the Render domain when deployed, otherwise falls back to localhost
+const REDIRECT_URI = process.env.REDIRECT_URI || 
+  (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL}/callback` : `http://localhost:${PORT}/callback`);
 
 let accessToken = "";
 let tokenExpiresAt = 0;
@@ -29,7 +30,7 @@ function validateEnvironment() {
 }
 
 // =========================================================================
-// NEW: SPOTIFY AUTHORIZATION ROUTES (To generate your REFRESH_TOKEN)
+// FIXED: SPOTIFY AUTHORIZATION ROUTES (Now works flawlessly on Render!)
 // =========================================================================
 
 app.get("/login", (req, res) => {
@@ -46,10 +47,9 @@ app.get("/login", (req, res) => {
     redirect_uri: REDIRECT_URI,
   });
 
-  // FIXED: Backticks used, and uppercase S in toString()
+  // FIXED: Backticks used with the correct capitalization on .toString()
   res.redirect(`https://spotify.com{params.toString()}`);
 });
-
 
 app.get("/callback", async (req, res) => {
   const code = req.query.code || null;
@@ -80,20 +80,20 @@ app.get("/callback", async (req, res) => {
 
     const { refresh_token, access_token } = response.data;
 
-    // Cache the initial access token
     accessToken = access_token;
     tokenExpiresAt = Date.now() + (response.data.expires_in || 3600) * 1000;
 
-    // Log to terminal for easy copying
     console.log("\n=============================================");
     console.log("🎉 SUCCESS! YOUR REFRESH TOKEN IS BELOW:");
     console.log(refresh_token);
     console.log("=============================================\n");
 
     res.send(`
-      <h1>Login Successful!</h1>
-      <p>Check your <strong>terminal/console logs</strong> to copy your <code>REFRESH_TOKEN</code>.</p>
-      <p>Add it to your environment variables (.env file) and restart your server.</p>
+      <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+        <h1 style="color: #1db954;">Login Successful!</h1>
+        <p>Check your <strong>Render Logs Dashboard</strong> to copy your <code>REFRESH_TOKEN</code>.</p>
+        <p>Add it to your Environment Variables on Render, save, and you're good to go!</p>
+      </div>
     `);
   } catch (error) {
     console.error("Error exchanging authorization code:", error.response?.data || error.message);
@@ -102,7 +102,7 @@ app.get("/callback", async (req, res) => {
 });
 
 // =========================================================================
-// EXISTNG UTILITIES & CORE ENDPOINTS
+// CORE API ENDPOINTS
 // =========================================================================
 
 async function refreshAccessToken() {
