@@ -45,11 +45,12 @@ app.get("/login", (req, res) => {
     client_id: process.env.CLIENT_ID,
     scope: scope,
     redirect_uri: REDIRECT_URI,
+    show_dialog: "true" // 🔥 FIXED: This explicitly forces the login prompt/account selection screen
   });
 
-  // FOOLPROOF FIX: Uses standard string concatenation so template literals can't fail
   res.redirect("https://spotify.com?" + params.toString());
 });
+
 
 
 app.get("/callback", async (req, res) => {
