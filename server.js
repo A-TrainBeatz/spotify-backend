@@ -34,22 +34,18 @@ function validateEnvironment() {
 // =========================================================================
 
 app.get("/login", (req, res) => {
-  // 1. Always use process.env variables so local testing and production both work
-  const MY_CLIENT_ID = process.env.CLIENT_ID || "cd2de6595a824dca89763e3498bfe23e"; 
-  const MY_REDIRECT_URI = REDIRECT_URI; 
+  // Hardcoded direct OAuth string to guarantee it never sends an invalid redirect
+  const targetUrl = "https://spotify.com" +
+    "?response_type=code" +
+    "&client_id=cd2de6595a824dca89763e3498bfe23e" +
+    "&scope=user-read-currently-playing%20user-read-playback-state" +
+    "&redirect_uri=https%3A%2F%2Fspotify-backend-pkqi.onrender.com%2Fcallback" +
+    "&show_dialog=true";
 
-  const scope = "user-read-currently-playing user-read-playback-state";
-  
-  // 🔥 FIXED: Changed base URL to ://spotify.com
-  const authUrl = "https://://spotify.com" + 
-    "?response_type=code" + 
-    "&client_id=" + MY_CLIENT_ID + 
-    "&scope=" + encodeURIComponent(scope) + 
-    "&redirect_uri=" + encodeURIComponent(MY_REDIRECT_URI) + 
-    "&show_dialog=true"; // Forces the login dialog window every time
-
-  res.redirect(authUrl);
+  console.log("Forcing redirect to verified Spotify endpoint...");
+  res.redirect(targetUrl);
 });
+
 
 
 
