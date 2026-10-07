@@ -19,8 +19,10 @@ function validateEnvironment() {
   const missing = required.filter(name => !process.env[name]);
 
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variable(s): ${missing.join(", ")}`);
+    console.warn(`⚠️ Warning: Missing environment variables: ${missing.join(", ")}`);
+    return false;
   }
+  return true;
 }
 
 async function refreshAccessToken() {
@@ -30,7 +32,9 @@ async function refreshAccessToken() {
 
   refreshPromise = (async () => {
     try {
-      validateEnvironment();
+      if (!validateEnvironment()) {
+        throw new Error("Environment variables are not configured.");
+      }
 
       const credentials = Buffer.from(
         `${process.env.CLIENT_ID}:${process.env.CLIENT_SECRET}`
@@ -122,8 +126,8 @@ app.get("/now-playing", async (req, res) => {
       }
     );
 
-    // Spotify uses HTTP 204 when there is no active playback.
-    if (response.status === 204 || !response.data) {
+    // Fixed: Standardize response handling for empty state or missing item object
+    if (response.status === 204 || !response.data || !response.data.item) {
       return res.status(204).end();
     }
 
@@ -137,8 +141,6 @@ app.get("/now-playing", async (req, res) => {
       spotifyData || error.message
     );
 
-    // A token can become invalid before our local expiry estimate.
-    // Refresh once and retry the Spotify request.
     if (spotifyStatus === 401) {
       try {
         const newToken = await refreshAccessToken();
@@ -154,7 +156,7 @@ app.get("/now-playing", async (req, res) => {
           }
         );
 
-        if (retry.status === 204 || !retry.data) {
+        if (retry.status === 204 || !retry.data || !retry.data.item) {
           return res.status(204).end();
         }
 
@@ -183,10 +185,9 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Refresh before the token is likely to expire.
-// The first request can also refresh it on demand, so startup is not race-prone.
+// Avoid app crashing if startup environment validation drops out on initial boot
 refreshAccessToken().catch(() => {
-  console.error("Initial Spotify token refresh failed.");
+  console.error("Initial Spotify token refresh failed. Will retry on demand.");
 });
 
 setInterval(() => {
