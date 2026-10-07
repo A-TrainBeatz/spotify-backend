@@ -34,21 +34,23 @@ function validateEnvironment() {
 // =========================================================================
 
 app.get("/login", (req, res) => {
-  const MY_CLIENT_ID = "cd2de6595a824dca89763e3498bfe23e"; 
-  
-  // 🔥 FIXED: Set this to your exact callback endpoint
-  const MY_REDIRECT_URI = "https://spotify-backend-pkqi.onrender.com/callback";
-  const scope = "user-read-currently-playing user-read-playback-state";
+  // 1. Always use process.env variables so local testing and production both work
+  const MY_CLIENT_ID = process.env.CLIENT_ID || "cd2de6595a824dca89763e3498bfe23e"; 
+  const MY_REDIRECT_URI = REDIRECT_URI; 
 
-  const authUrl = "https://spotify.com" +
-    "?response_type=code" +
-    "&client_id=" + MY_CLIENT_ID +
-    "&scope=" + encodeURIComponent(scope) +
+  const scope = "user-read-currently-playing user-read-playback-state";
+  
+  // 🔥 FIXED: Changed base URL to ://spotify.com
+  const authUrl = "https://://spotify.com" + 
+    "?response_type=code" + 
+    "&client_id=" + MY_CLIENT_ID + 
+    "&scope=" + encodeURIComponent(scope) + 
     "&redirect_uri=" + encodeURIComponent(MY_REDIRECT_URI) + 
-    "&show_dialog=true";
+    "&show_dialog=true"; // Forces the login dialog window every time
 
   res.redirect(authUrl);
 });
+
 
 
 
