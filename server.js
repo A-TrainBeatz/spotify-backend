@@ -34,19 +34,17 @@ function validateEnvironment() {
 // =========================================================================
 
 app.get("/login", (req, res) => {
-  if (!process.env.CLIENT_ID) {
-    return res.status(500).send("CLIENT_ID is missing from your environment variables.");
-  }
-
-  const scope = "user-read-currently-playing user-read-playback-state";
+  const MY_CLIENT_ID = "cd2de6595a824dca89763e3498bfe23e"; 
   
-  // 🔥 FIXED: Every variable is safely and explicitly URL encoded.
-  // This bypasses Spotify's silent redirect validation filters entirely.
-  const authUrl = "https://accounts.spotify.com/authorize" +
+  // 🔥 FIXED: Set this to your exact callback endpoint
+  const MY_REDIRECT_URI = "https://spotify-backend-pkqi.onrender.com/callback";
+  const scope = "user-read-currently-playing user-read-playback-state";
+
+  const authUrl = "https://spotify.com" +
     "?response_type=code" +
-    "&client_id=" + encodeURIComponent(process.env.CLIENT_ID) +
+    "&client_id=" + MY_CLIENT_ID +
     "&scope=" + encodeURIComponent(scope) +
-    "&redirect_uri=" + encodeURIComponent(REDIRECT_URI) + 
+    "&redirect_uri=" + encodeURIComponent(MY_REDIRECT_URI) + 
     "&show_dialog=true";
 
   res.redirect(authUrl);
