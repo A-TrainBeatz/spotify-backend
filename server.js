@@ -46,8 +46,10 @@ app.get("/login", (req, res) => {
     redirect_uri: REDIRECT_URI,
   });
 
+  // FIXED: Backticks used, and uppercase S in toString()
   res.redirect(`https://spotify.com{params.toString()}`);
 });
+
 
 app.get("/callback", async (req, res) => {
   const code = req.query.code || null;
