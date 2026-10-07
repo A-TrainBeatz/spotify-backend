@@ -47,8 +47,10 @@ app.get("/login", (req, res) => {
     redirect_uri: REDIRECT_URI,
   });
 
-  res.redirect(`https://spotify.com{params.toString()}`);
+  // FOOLPROOF FIX: Uses standard string concatenation so template literals can't fail
+  res.redirect("https://spotify.com?" + params.toString());
 });
+
 
 app.get("/callback", async (req, res) => {
   const code = req.query.code || null;
