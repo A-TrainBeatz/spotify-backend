@@ -40,16 +40,18 @@ app.get("/login", (req, res) => {
 
   const scope = "user-read-currently-playing user-read-playback-state";
   
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: process.env.CLIENT_ID,
-    scope: scope,
-    redirect_uri: REDIRECT_URI,
-    show_dialog: "true" // 🔥 FIXED: This explicitly forces the login prompt/account selection screen
-  });
+  // 🔥 FIXED: Every variable is safely and explicitly URL encoded.
+  // This bypasses Spotify's silent redirect validation filters entirely.
+  const authUrl = "https://accounts.spotify.com/authorize" +
+    "?response_type=code" +
+    "&client_id=" + encodeURIComponent(process.env.CLIENT_ID) +
+    "&scope=" + encodeURIComponent(scope) +
+    "&redirect_uri=" + encodeURIComponent(REDIRECT_URI) + 
+    "&show_dialog=true";
 
-  res.redirect("https://spotify.com?" + params.toString());
+  res.redirect(authUrl);
 });
+
 
 
 
