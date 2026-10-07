@@ -10,9 +10,9 @@ app.use(cors());
 
 const PORT = Number(process.env.PORT) || 3000;
 
-// FIXED: Automatically uses the Render domain when deployed, otherwise falls back to localhost
+// FIXED: Dynamically matches your exact Spotify dashboard HTTPS Redirect URIs
 const REDIRECT_URI = process.env.REDIRECT_URI || 
-  (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL}/callback` : `http://localhost:${PORT}/callback`);
+  (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL}/callback` : `https://127.0.0.1:${PORT}/callback`);
 
 let accessToken = "";
 let tokenExpiresAt = 0;
@@ -30,7 +30,7 @@ function validateEnvironment() {
 }
 
 // =========================================================================
-// FIXED: SPOTIFY AUTHORIZATION ROUTES (Now works flawlessly on Render!)
+// SPOTIFY AUTHORIZATION ROUTES
 // =========================================================================
 
 app.get("/login", (req, res) => {
@@ -47,7 +47,6 @@ app.get("/login", (req, res) => {
     redirect_uri: REDIRECT_URI,
   });
 
-  // FIXED: Backticks used with the correct capitalization on .toString()
   res.redirect(`https://spotify.com{params.toString()}`);
 });
 
@@ -83,16 +82,27 @@ app.get("/callback", async (req, res) => {
     accessToken = access_token;
     tokenExpiresAt = Date.now() + (response.data.expires_in || 3600) * 1000;
 
+    // Outputs directly to your server workspace terminal logs
     console.log("\n=============================================");
     console.log("🎉 SUCCESS! YOUR REFRESH TOKEN IS BELOW:");
     console.log(refresh_token);
     console.log("=============================================\n");
 
+    // FIXED: Prints the Refresh Token directly on-screen so you can grab it instantly
     res.send(`
-      <div style="font-family: sans-serif; text-align: center; padding: 50px;">
-        <h1 style="color: #1db954;">Login Successful!</h1>
-        <p>Check your <strong>Render Logs Dashboard</strong> to copy your <code>REFRESH_TOKEN</code>.</p>
-        <p>Add it to your Environment Variables on Render, save, and you're good to go!</p>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #121212; color: #ffffff; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+        <div style="background: #1e1e1e; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 600px; width: 100%; text-align: center;">
+          <h1 style="color: #1db954; font-size: 2.2rem; margin-bottom: 10px;">🎉 Login Successful!</h1>
+          <p style="color: #bbb; margin-bottom: 25px;">Copy the code block below and save it as your <code>REFRESH_TOKEN</code> variable inside Render.</p>
+          
+          <div style="position: relative; background: #000000; padding: 15px; border-radius: 6px; border: 1px solid #333; margin-bottom: 25px; word-break: break-all; text-align: left; font-family: monospace; font-size: 0.95rem; color: #1db954; user-select: all;">
+            ${refresh_token}
+          </div>
+
+          <p style="font-size: 0.85rem; color: #777; line-height: 1.4;">
+            Once you add <strong>REFRESH_TOKEN</strong> to your environment variables tab on Render and click <strong>Save Changes</strong>, your widget will start displaying your live music status cleanly!
+          </p>
+        </div>
       </div>
     `);
   } catch (error) {
